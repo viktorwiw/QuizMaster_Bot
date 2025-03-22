@@ -1,4 +1,14 @@
 import os
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from environs import Env
+from telegram import Update
+from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters, Updater
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_filename_images():
@@ -27,7 +37,44 @@ def get_questions(file_names):
                     answer = line.split(':', 1)[1].replace("\n", " ").strip()
 
 
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(text="I'm a bot, please talk to me!")
+
+
+def echo(update: Update, context: CallbackContext):
+    update.message.reply_text(text=update.message.text)
+
+
 def main():
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        "%(name)s | %(levelname)s | %(asctime)s\n"
+        "%(message)s | %(filename)s:%(lineno)d",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler = RotatingFileHandler(
+        Path(__file__).parent / 'bot.log',
+        maxBytes=1000,
+        backupCount=2
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    env = Env()
+    env.read_env()
+
+    telegram_token = env.str('TELEGRAM_TOKEN')
+
+    updater = Updater(token=telegram_token)
+
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(MessageHandler(Filters.text & (~Filters.command), echo))
+
+    updater.start_polling()
+    updater.idle()
+
     get_questions(get_filename_images())
 
 
