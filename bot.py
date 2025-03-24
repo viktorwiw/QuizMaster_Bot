@@ -1,18 +1,18 @@
 import os
 import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
 import random
 
 from environs import Env
 import redis
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters, Updater
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import CallbackContext, CommandHandler, MessageHandler, Filters, Updater, ConversationHandler
+
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ANSWER = range(1)
 
 def get_filename_images():
     with os.scandir('quiz-questions/') as files:
@@ -51,26 +51,36 @@ def get_questions(file_names):
 
 
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(text='Привет! Я бот для викторин!', reply_markup=get_main_keyboard())
+    update.message.reply_text(
+        text='Привет! Я бот для викторин! Чтобы начать, нажмите кнопку "Новый вопрос"',
+        reply_markup=get_main_keyboard()
+    )
 
 
-def get_random_question(update: Update, context: CallbackContext):
+def get_main_keyboard():
+    main_keyboard = [
+        ['Новый вопрос'],
+        ['Мой счет']
+    ]
+    reply_markup = ReplyKeyboardMarkup(main_keyboard)
+    return reply_markup
+
+
+def handle_new_question_request(update, context):
     questions = context.bot_data['questions']
-    redis_db = context.bot_data['redis_db']
-
     question = random.choice(list(questions.keys()))
+
+    redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
     redis_db.set(chat_id, question)
-    print(redis_db.get(chat_id), '\n', questions[redis_db.get(chat_id)])
-    update.message.reply_text(question, reply_markup=get_main_keyboard())
 
+    logger.info(redis_db.get(chat_id), '\n\n', f'Ответ: {questions[redis_db.get(chat_id)]}')
 
-def handle_new_question_request():
-    pass
-
-
-def handle_solution_attempt():
-    pass
+    update.message.reply_text(
+        f'{question}\n\nВведите ответ:',
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ANSWER
 
 
 def handle_button(update: Update, context: CallbackContext):
@@ -79,39 +89,23 @@ def handle_button(update: Update, context: CallbackContext):
     question = redis_db.get(chat_id)
     answer = context.bot_data['questions'][question]
 
-    if update.message.text == 'Новый вопрос':
-        get_random_question(update, context)
-    elif update.message.text.lower() == answer.split('.\n\n', 1)[0].lower():
-        update.message.reply_text(f'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»', reply_markup=get_main_keyboard())
+    if update.message.text.lower() == answer.split('.\n\n', 1)[0].lower():
+        update.message.reply_text(
+            f'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»',
+            reply_markup=get_main_keyboard()
+        )
     elif update.message.text.lower() != answer.split('.\n\n', 1)[0].lower():
-        update.message.reply_text(f'Неправильно. Попробуешь ещё раз?', reply_markup=get_main_keyboard())
+        update.message.reply_text(
+            f'Неправильно. Попробуешь ещё раз?',
+            reply_markup=get_main_keyboard()
+        )
 
 
-def get_main_keyboard():
-    main_keyboard = [
-        ['Новый вопрос', 'Сдаться'],
-        ['Мой счет']
-    ]
-    reply_markup = ReplyKeyboardMarkup(main_keyboard)
-    return reply_markup
+def handle_solution_attempt():
+    pass
 
 
 def main():
-    # logger.setLevel(logging.INFO)
-    # formatter = logging.Formatter(
-    #     "%(name)s | %(levelname)s | %(asctime)s\n"
-    #     "%(message)s | %(filename)s:%(lineno)d",
-    #     datefmt="%Y-%m-%d %H:%M:%S"
-    # )
-    # handler = RotatingFileHandler(
-    #     Path(__file__).parent / 'bot.log',
-    #     maxBytes=1000,
-    #     backupCount=2
-    # )
-    # handler.setFormatter(formatter)
-    # logger.addHandler(handler)
-
-
     env = Env()
     env.read_env()
 
@@ -130,14 +124,22 @@ def main():
 
     updater = Updater(token=telegram_token)
 
-    dispatcher = updater.dispatcher
+    dp = updater.dispatcher
 
-    dispatcher.bot_data['questions'] = get_questions(get_filename_images())
-    dispatcher.bot_data['redis_db'] = redis_db
+    dp.bot_data['questions'] = get_questions(get_filename_images())
+    dp.bot_data['redis_db'] = redis_db
 
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_button))
+    conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.regex('^(Новый вопрос)$'), handle_new_question_request)],
+        states={},
+        fallbacks=[]
+    )
 
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(conv_handler)
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_button))
+
+    logger.info('Бот запущен')
     updater.start_polling()
     updater.idle()
 
