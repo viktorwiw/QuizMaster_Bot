@@ -12,7 +12,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ANSWER = range(1)
+ANSWER, NEW_QUESTION = range(2)
 
 def get_filename_images():
     with os.scandir('quiz-questions/') as files:
@@ -46,35 +46,37 @@ def get_questions(file_names):
                 elif line.startswith('Ответ'):
                     answer = line.split(':', 1)[1].replace("\n", " ").strip()
                 elif line.startswith('Комментарий'):
-                    full_answer = "{}\n\n{}".format(answer, line.replace('\n', ' ').strip())
+                    full_answer = "{}\n\n{}".format(
+                        answer,
+                        line.replace('\n', ' ').strip()
+                    )
     return questions
 
 
+def get_random_question(questions):
+    return random.choice(list(questions.keys()))
+
+
 def start(update: Update, context: CallbackContext):
-    update.message.reply_text(
-        text='Привет! Я бот для викторин! Чтобы начать, нажмите кнопку "Новый вопрос"',
-        reply_markup=get_main_keyboard()
-    )
-
-
-def get_main_keyboard():
-    main_keyboard = [
+    reply_keyboard = [
         ['Новый вопрос'],
         ['Мой счет']
     ]
-    reply_markup = ReplyKeyboardMarkup(main_keyboard)
-    return reply_markup
+    update.message.reply_text(
+        text='Привет! Я бот для викторин! Чтобы начать, нажмите кнопку "Новый вопрос"',
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard)
+    )
 
 
 def handle_new_question_request(update, context):
     questions = context.bot_data['questions']
-    question = random.choice(list(questions.keys()))
+    question = get_random_question(questions)
 
     redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
     redis_db.set(chat_id, question)
 
-    logger.info(redis_db.get(chat_id), '\n\n', f'Ответ: {questions[redis_db.get(chat_id)]}')
+    print(redis_db.get(chat_id), '\n\n', f'Ответ: {questions[redis_db.get(chat_id)]}')
 
     update.message.reply_text(
         f'{question}\n\nВведите ответ:',
@@ -83,26 +85,37 @@ def handle_new_question_request(update, context):
     return ANSWER
 
 
-def handle_button(update: Update, context: CallbackContext):
+def handle_solution_attempt(update: Update, context: CallbackContext):
+    reply_keyboard = [
+        ['Сдаться'],
+        ['Мой счет']
+    ]
+    questions = context.bot_data['questions']
+    # new_question = get_random_question(questions)
+
+    answer = update.message.text.lower()
+
     redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
     question = redis_db.get(chat_id)
-    answer = context.bot_data['questions'][question]
+    true_answer = context.bot_data['questions'][question].split('.\n', 1)[0].lower()
 
-    if update.message.text.lower() == answer.split('.\n\n', 1)[0].lower():
-        update.message.reply_text(
-            f'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»',
-            reply_markup=get_main_keyboard()
-        )
-    elif update.message.text.lower() != answer.split('.\n\n', 1)[0].lower():
+    if answer != true_answer:
         update.message.reply_text(
             f'Неправильно. Попробуешь ещё раз?',
-            reply_markup=get_main_keyboard()
+            reply_markup=ReplyKeyboardMarkup(reply_keyboard)
         )
+        return ANSWER
+
+    else:
+        # context.user_data['answer_count'] += 1
+        update.message.reply_text('Правильно! Поздравляю!')
+        return ConversationHandler.END
 
 
-def handle_solution_attempt():
-    pass
+def cansel(update: Update, context: CallbackContext):
+    update.message.reply_text('Правильный ответ:  , Для нового вопроса нажмите "Новый вопрос"')
+    return ConversationHandler.END
 
 
 def main():
@@ -130,14 +143,20 @@ def main():
     dp.bot_data['redis_db'] = redis_db
 
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.regex('^(Новый вопрос)$'), handle_new_question_request)],
-        states={},
-        fallbacks=[]
+        entry_points=[MessageHandler(
+            Filters.regex('^(Новый вопрос)$'),
+            handle_new_question_request
+        )],
+
+        states={
+            ANSWER: [MessageHandler(Filters.text, handle_solution_attempt)],
+        },
+
+        fallbacks=[CommandHandler('cancel', cansel)],
     )
 
     dp.add_handler(CommandHandler('start', start))
     dp.add_handler(conv_handler)
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_button))
 
     logger.info('Бот запущен')
     updater.start_polling()
