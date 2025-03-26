@@ -12,7 +12,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-ANSWER, NEW_QUESTION = range(2)
+ANSWER = range(1)
 
 def get_filename_images():
     with os.scandir('quiz-questions/') as files:
@@ -58,14 +58,12 @@ def get_random_question(questions):
 
 
 def start(update: Update, context: CallbackContext):
-    reply_keyboard = [
-        ['Новый вопрос'],
-        ['Мой счет']
-    ]
     update.message.reply_text(
         text='Привет! Я бот для викторин! Чтобы начать, нажмите кнопку "Новый вопрос"',
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard)
-    )
+        reply_markup=ReplyKeyboardMarkup([
+            ['Новый вопрос'],
+            ['Мой счет']
+    ]))
 
 
 def handle_new_question_request(update, context):
@@ -86,36 +84,52 @@ def handle_new_question_request(update, context):
 
 
 def handle_solution_attempt(update: Update, context: CallbackContext):
-    reply_keyboard = [
-        ['Сдаться'],
-        ['Мой счет']
-    ]
     questions = context.bot_data['questions']
-    # new_question = get_random_question(questions)
 
-    answer = update.message.text.lower()
+    answer = update.message.text.lower().strip(' .!?')
 
     redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
     question = redis_db.get(chat_id)
-    true_answer = context.bot_data['questions'][question].split('.\n', 1)[0].lower()
+    true_answer = questions[question].split('.\n', 1)[0].lower().strip(' .!?')
 
-    if answer != true_answer:
+    if answer in true_answer:
+        context.user_data['score'] += 1
+        update.message.reply_text(
+            'Правильно! Поздравляю!',
+            reply_markup=ReplyKeyboardMarkup([
+        ['Новый вопрос'],
+        ['Мой счет']
+    ]))
+        return ConversationHandler.END
+
+    else:
         update.message.reply_text(
             f'Неправильно. Попробуешь ещё раз?',
-            reply_markup=ReplyKeyboardMarkup(reply_keyboard)
+            reply_markup=ReplyKeyboardMarkup([
+        ['Сдаться'],
+        ['Мой счет']
+    ])
         )
         return ANSWER
 
-    else:
-        # context.user_data['answer_count'] += 1
-        update.message.reply_text('Правильно! Поздравляю!')
-        return ConversationHandler.END
 
-
-def cansel(update: Update, context: CallbackContext):
-    update.message.reply_text('Правильный ответ:  , Для нового вопроса нажмите "Новый вопрос"')
+def handle_give_up(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        'Правильный ответ:  , Для нового вопроса нажмите "Новый вопрос"',
+    reply_markup=ReplyKeyboardMarkup([
+        ['Новый вопрос'],
+        ['Мой счет']
+    ]))
     return ConversationHandler.END
+
+
+def handle_answer_dontknown(update: Update, context: CallbackContext):
+    update.message.reply_text("Не понимаю")
+
+
+def handle_get_score(update: Update, context: CallbackContext):
+    update.message.reply_text(f'Ваш счет - {context.bot_data["score"]}')
 
 
 def main():
@@ -149,13 +163,20 @@ def main():
         )],
 
         states={
-            ANSWER: [MessageHandler(Filters.text, handle_solution_attempt)],
+            ANSWER: [
+                MessageHandler(Filters.regex('^(Сдаться)$'), handle_give_up),
+                MessageHandler(Filters.text, handle_solution_attempt),
+            ],
         },
 
-        fallbacks=[CommandHandler('cancel', cansel)],
+        fallbacks=[MessageHandler(
+            Filters.video | Filters.photo | Filters.document | Filters.location,
+            handle_answer_dontknown
+        )],
     )
 
     dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(MessageHandler(Filters.regex('^(Мой счет)$'), handle_get_score))
     dp.add_handler(conv_handler)
 
     logger.info('Бот запущен')
