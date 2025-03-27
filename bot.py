@@ -69,12 +69,13 @@ def start(update: Update, context: CallbackContext):
 def handle_new_question_request(update, context):
     questions = context.bot_data['questions']
     question = get_random_question(questions)
+    answer = questions[question]
 
     redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
-    redis_db.set(chat_id, question)
-
-    print(redis_db.get(chat_id), '\n\n', f'Ответ: {questions[redis_db.get(chat_id)]}')
+    redis_db.hset(chat_id, question, answer)
+    print(redis_db.hget(chat_id, question, '\n\n'))
+    # print(redis_db.get(chat_id), '\n\n', f'Ответ: {questions[redis_db.get(chat_id)]}')
 
     update.message.reply_text(
         f'{question}\n\nВведите ответ:',
@@ -90,11 +91,13 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
 
     redis_db = context.bot_data['redis_db']
     chat_id = update.message.chat_id
+
     question = redis_db.get(chat_id)
     true_answer = questions[question].split('.\n', 1)[0].lower().strip(' .!?')
 
     if answer in true_answer:
         context.user_data['score'] += 1
+        print(context.user_data['score'])
         update.message.reply_text(
             'Правильно! Поздравляю!',
             reply_markup=ReplyKeyboardMarkup([
