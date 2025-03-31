@@ -1,8 +1,10 @@
 import os
 import random
+from pathlib import Path
+
 
 def get_filename_images():
-    with os.scandir('quiz-questions/') as files:
+    with os.scandir(Path(__file__).parent / 'quiz-questions') as files:
         file_names = [file.name for file in files]
     return file_names
 
@@ -10,7 +12,7 @@ def get_filename_images():
 def get_questions(file_names):
     questions = {}
     for name in file_names:
-        with open(f'quiz-questions/{name}', 'r', encoding='KOI8-R') as file:
+        with open(Path(__file__).parent / 'quiz-questions' / name, 'r', encoding='KOI8-R') as file:
             file_content = file.read()
 
         for block in file_content.split('\n\n\n'):
