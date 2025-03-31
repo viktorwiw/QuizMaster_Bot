@@ -2,9 +2,10 @@
 Чат-бот викторина для Telegram и [ВКонтакте](https://vk.com/).
 Это познавательный бот, который проверит ваши знания по истории! От древних цивилизаций до современных событий – пройдите увлекательную викторину, узнайте новые факты и станьте настоящим историческим экспертом.
 
-![Mar-31-2025 15-19-51](https://github.com/user-attachments/assets/a58aacc0-b4ca-407e-bf2f-2a735ec23d67)
+![Mar-31-2025 15-48-14](https://github.com/user-attachments/assets/3d7a2549-f141-4119-851d-c94abcd23d52)
 
-![Mar-31-2025 15-33-30](https://github.com/user-attachments/assets/29b6bfd5-4b33-4571-b78b-80c873f8c0fb)
+![Mar-31-2025 15-44-11](https://github.com/user-attachments/assets/06a8d442-cee1-493c-90ac-fac5752694e4)
+
 
 Посмотреть боты:
 
