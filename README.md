@@ -32,6 +32,8 @@
 
 **User и Default user password** - в разделе Security
 
+- Скачайте в корень проекта папку с [вопросами](https://dvmn.org/modules/chat-bots/lesson/quiz-bot/#1)
+
 - Создайте в корне проекта, файл `.env` Пропишите в нем:
 
 ```
