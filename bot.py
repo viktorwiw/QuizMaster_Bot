@@ -35,10 +35,10 @@ def handle_new_question_request(update, context):
     answer = questions[question].split('.\n', 1)[0].strip(' .!?')
 
     redis_db = context.bot_data['redis_db']
-    chat_id = update.message.chat_id
-    current_score = redis_db.hget(chat_id, 'score') or 0
+    tg_chat_id = update.message.chat_id
+    current_score = redis_db.hget(tg_chat_id, 'score') or 0
     redis_db.hset(
-        chat_id,
+        tg_chat_id,
         mapping={
             'current_question': question,
             'current_answer': answer,
@@ -46,7 +46,7 @@ def handle_new_question_request(update, context):
         },
     )
 
-    logger.info(f'Current question: {redis_db.hgetall(chat_id)}')
+    logger.info(f'Current question: {redis_db.hgetall(tg_chat_id)}')
 
     update.message.reply_text(
         question,
@@ -59,12 +59,12 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
     answer = update.message.text.lower().strip(' .!?\n')
 
     redis_db = context.bot_data['redis_db']
-    chat_id = update.message.chat_id
+    tg_chat_id = update.message.chat_id
 
-    true_answer = redis_db.hget(chat_id, 'current_answer').lower()
+    true_answer = redis_db.hget(tg_chat_id, 'current_answer').lower()
 
     if answer in true_answer:
-        redis_db.hincrby(chat_id, 'score', 1)
+        redis_db.hincrby(tg_chat_id, 'score', 1)
         update.message.reply_text(
             'Правильно! Поздравляю! Для следующего вопроса нажмите "Новый вопрос"',
             reply_markup=get_keyboard()
@@ -81,8 +81,8 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
 
 def handle_give_up(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    chat_id = update.message.chat_id
-    true_answer = redis_db.hget(chat_id, 'current_answer')
+    tg_chat_id = update.message.chat_id
+    true_answer = redis_db.hget(tg_chat_id, 'current_answer')
 
     update.message.reply_text(
         f'Правильный ответ: {true_answer}\n\nДля нового вопроса нажмите "Новый вопрос"',
@@ -98,8 +98,8 @@ def handle_answer_dontknown(update: Update, context: CallbackContext):
 
 def handle_cansel(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    chat_id = update.message.chat_id
-    redis_db.delete(chat_id)
+    tg_chat_id = update.message.chat_id
+    redis_db.delete(tg_chat_id)
 
     update.message.reply_text(
         'Команда завершения работы викторины и обнуления счета\n\nДля начала викторины нажмите "Новый вопрос".'
@@ -109,8 +109,8 @@ def handle_cansel(update: Update, context: CallbackContext):
 
 def handle_get_score(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    chat_id = update.message.chat_id
-    score = redis_db.hget(chat_id, 'score')
+    tg_chat_id = update.message.chat_id
+    score = redis_db.hget(tg_chat_id, 'score')
     if not score:
         score = 0
     update.message.reply_text(
