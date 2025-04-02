@@ -39,7 +39,7 @@ def handle_new_question_request(event, vk_api, questions, redis_db):
     question = get_random_question(questions)
     answer = questions[question].split('.\n', 1)[0].strip(' .!?')
 
-    vk_user_id = event.user_id
+    vk_user_id = f'vk-{event.user_id}'
 
     redis_db.hset(
         vk_user_id,
@@ -52,7 +52,7 @@ def handle_new_question_request(event, vk_api, questions, redis_db):
     logger.info(f'Current question: {redis_db.hgetall(vk_user_id)}')
 
     vk_api.messages.send(
-        user_id=vk_user_id,
+        user_id=event.user_id,
         random_id=get_random_id(),
         message=question,
         keyboard=get_main_keyboard()
@@ -60,13 +60,13 @@ def handle_new_question_request(event, vk_api, questions, redis_db):
 
 
 def handle_solution_attempt(event, vk_api, redis_db):
-    vk_user_id = event.user_id
+    vk_user_id = f'vk-{event.user_id}'
     user_answer = event.text.lower().strip(' .!?')
     true_answer = redis_db.hget(vk_user_id, 'current_answer')
 
     if user_answer in true_answer.lower():
         vk_api.messages.send(
-            user_id=vk_user_id,
+            user_id=event.user_id,
             random_id=get_random_id(),
             message='Правильно! Поздравляю! Для следующего вопроса нажмите "Новый вопрос"',
             keyboard=get_main_keyboard()
@@ -74,7 +74,7 @@ def handle_solution_attempt(event, vk_api, redis_db):
 
     elif event.text == 'Сдаться':
         vk_api.messages.send(
-            user_id=vk_user_id,
+            user_id=event.user_id,
             random_id=get_random_id(),
             message=f'Правильный ответ: {true_answer}\n\nДля получения нового вопроса нажмите "Новый вопрос"',
             keyboard=get_main_keyboard()
@@ -82,7 +82,7 @@ def handle_solution_attempt(event, vk_api, redis_db):
 
     else:
         vk_api.messages.send(
-            user_id=vk_user_id,
+            user_id=event.user_id,
             random_id=get_random_id(),
             message='Неправильно. Попробуй ещё раз.',
             keyboard=get_main_keyboard()

@@ -35,7 +35,7 @@ def handle_new_question_request(update, context):
     answer = questions[question].split('.\n', 1)[0].strip(' .!?')
 
     redis_db = context.bot_data['redis_db']
-    tg_chat_id = update.message.chat_id
+    tg_chat_id = f'tg-{update.message.chat_id}'
     current_score = redis_db.hget(tg_chat_id, 'score') or 0
     redis_db.hset(
         tg_chat_id,
@@ -59,7 +59,7 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
     answer = update.message.text.lower().strip(' .!?\n')
 
     redis_db = context.bot_data['redis_db']
-    tg_chat_id = update.message.chat_id
+    tg_chat_id = f'tg-{update.message.chat_id}'
 
     true_answer = redis_db.hget(tg_chat_id, 'current_answer').lower()
 
@@ -81,7 +81,7 @@ def handle_solution_attempt(update: Update, context: CallbackContext):
 
 def handle_give_up(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    tg_chat_id = update.message.chat_id
+    tg_chat_id = f'tg-{update.message.chat_id}'
     true_answer = redis_db.hget(tg_chat_id, 'current_answer')
 
     update.message.reply_text(
@@ -98,7 +98,7 @@ def handle_answer_dontknown(update: Update, context: CallbackContext):
 
 def handle_cansel(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    tg_chat_id = update.message.chat_id
+    tg_chat_id = f'tg-{update.message.chat_id}'
     redis_db.delete(tg_chat_id)
 
     update.message.reply_text(
@@ -109,7 +109,7 @@ def handle_cansel(update: Update, context: CallbackContext):
 
 def handle_get_score(update: Update, context: CallbackContext):
     redis_db = context.bot_data['redis_db']
-    tg_chat_id = update.message.chat_id
+    tg_chat_id = f'tg-{update.message.chat_id}'
     score = redis_db.hget(tg_chat_id, 'score')
     if not score:
         score = 0
